@@ -1,0 +1,5 @@
+{
+  "name": "MyBnB Flats",
+  "description": "Plataforma de aluguel de temporada estilo Airbnb com painel administrativo.",
+  "requestFramePermissions": []
+}
