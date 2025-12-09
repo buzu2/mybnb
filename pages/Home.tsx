@@ -105,8 +105,13 @@ const Home: React.FC = () => {
       </section>
 
       {/* Intro Text */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-20 bg-[#FFFCEF]">
         <div className="max-w-3xl mx-auto px-4 text-center">
+          <img 
+            src="https://i.postimg.cc/hjX3ZGrM/logo-super.png" 
+            alt="MyBnB Flats Logo" 
+            className="mx-auto h-32 mb-6"
+          />
           <span className="text-[#e8a633] font-bold uppercase tracking-widest text-sm mb-3 block">Nossa Proposta</span>
           <h2 className="text-3xl font-bold text-gray-900 mb-6">Design, Conforto e Praticidade</h2>
           <p className="text-gray-600 text-lg leading-relaxed">
@@ -116,7 +121,7 @@ const Home: React.FC = () => {
       </section>
 
       {/* Destaques */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-[#FFFCEF]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-end mb-12">
             <div>
@@ -143,7 +148,7 @@ const Home: React.FC = () => {
       </section>
 
       {/* Testimonials Section */}
-      <section className="py-20 bg-gray-50">
+      <section className="py-20 bg-[#FFFCEF]">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900">O que dizem nossos hóspedes</h2>
@@ -206,7 +211,7 @@ const Home: React.FC = () => {
       </section>
 
       {/* FAQ Section */}
-      <section className="py-20 bg-white">
+      <section className="py-20 bg-[#FFFCEF]">
         <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-12">
             <h2 className="text-3xl font-bold text-gray-900 flex items-center justify-center gap-2">
@@ -217,7 +222,7 @@ const Home: React.FC = () => {
 
           <div className="space-y-4">
             {faqs.map((faq, index) => (
-              <details key={index} className="group border border-gray-200 rounded-lg bg-gray-50 open:bg-white open:shadow-md transition-all duration-300">
+              <details key={index} className="group border border-gray-200 rounded-lg bg-white open:shadow-md transition-all duration-300">
                 <summary className="flex cursor-pointer items-center justify-between p-4 font-medium text-gray-900 group-hover:text-[#d65066] transition-colors [&::-webkit-details-marker]:hidden">
                   <span className="flex items-start text-left gap-3">
                     <span className="font-bold text-[#e8a633]">{index + 1}.</span>

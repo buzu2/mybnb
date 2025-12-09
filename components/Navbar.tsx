@@ -16,21 +16,14 @@ const Navbar: React.FC = () => {
   return (
     <nav className="bg-white shadow-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between h-20">
+        <div className="flex justify-between h-28">
           <div className="flex items-center">
-            <Link to="/" className="flex-shrink-0 flex items-center gap-3">
-              {/* Logo Icon SVG */}
-              <svg width="34" height="46" viewBox="0 0 34 46" fill="none" xmlns="http://www.w3.org/2000/svg">
-                <rect width="34" height="46" fill="#D65066"/>
-                <circle cx="17" cy="14" r="6" fill="white"/>
-                <path d="M0 46V30C0 30 6 22 17 22C28 22 34 30 34 30V46H0Z" fill="#E8A633"/>
-              </svg>
-              
-              {/* Logo Text */}
-              <div className="flex flex-col leading-none justify-center">
-                <span className="text-xl font-bold text-[#E8A633] tracking-wide">MYBNB</span>
-                <span className="text-sm font-bold text-[#D65066] tracking-[0.25em] ml-0.5">FLATS</span>
-              </div>
+            <Link to="/" className="flex-shrink-0 flex items-center">
+              <img 
+                src="https://i.postimg.cc/tgyPJvwH/logo-ajust.png" 
+                alt="MyBnB Flats" 
+                className="h-24 w-auto"
+              />
             </Link>
           </div>
           
