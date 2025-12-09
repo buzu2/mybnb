@@ -1,19 +1,26 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useProperties } from '../contexts/PropertyContext';
 import { Property, DateRange } from '../types';
-import { Edit2, Trash2, Plus, X, Save, LogOut, Upload, Image as ImageIcon, Calendar, Video, Settings, Wifi, Wind, Tv, Coffee, Car, Droplets, Dumbbell, Lock, Sun, Umbrella } from 'lucide-react';
+import { supabase } from '../supabaseClient';
+import { Edit2, Trash2, Plus, X, Save, LogOut, Upload, Image as ImageIcon, Calendar, Video, Settings, Wifi, Wind, Tv, Coffee, Car, Droplets, Dumbbell, Lock, Sun, Umbrella, Loader2, Database } from 'lucide-react';
 
 const Admin: React.FC = () => {
-  const { properties, amenities, addProperty, updateProperty, deleteProperty, addAmenity, deleteAmenity } = useProperties();
-  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const { properties, amenities, addProperty, updateProperty, deleteProperty, addAmenity, deleteAmenity, isUsingMocks } = useProperties();
+  const [session, setSession] = useState<any>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isManagingAmenities, setIsManagingAmenities] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
+  const [showSqlConfig, setShowSqlConfig] = useState(false);
 
-  // Login Mock
-  const [loginUser, setLoginUser] = useState('');
-  const [loginPass, setLoginPass] = useState('');
+  // Login State
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loginError, setLoginError] = useState('');
 
   // Form State
   const initialFormState: Omit<Property, 'id'> = {
@@ -52,20 +59,58 @@ const Admin: React.FC = () => {
     { key: 'umbrella', label: 'Lazer', component: <Umbrella size={18}/> },
   ];
 
-  const handleLogin = (e: React.FormEvent) => {
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setIsAuthChecking(false);
+    });
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Mock authentication
-    if (loginUser === 'adminmybnb' && loginPass === 'adminmybnb') {
-      setIsLoggedIn(true);
-    } else {
-      alert('Usuário ou senha inválidos.');
+    setLoginError('');
+    try {
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password,
+      });
+
+      if (error) {
+        // Auto-create logic for the specific requested admin user if they don't exist
+        if (email === 'surfads01@gmail.com' && error?.message?.includes('Invalid login credentials')) {
+          console.log("Tentando criar usuário admin automaticamente...");
+          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+            email,
+            password,
+          });
+
+          if (signUpError) throw signUpError;
+
+          if (signUpData.session) {
+             // Login successful after creation
+             return;
+          } else if (signUpData.user) {
+             alert("Usuário criado com sucesso! Se você não conseguir entrar automaticamente, verifique seu e-mail para confirmar o cadastro (Padrão do Supabase).");
+             return;
+          }
+        }
+        throw error;
+      }
+    } catch (error: any) {
+      setLoginError(error?.message || error?.error_description || 'Erro ao fazer login');
     }
   };
 
-  const handleLogout = () => {
-    setIsLoggedIn(false);
-    setLoginUser('');
-    setLoginPass('');
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
   };
 
   const startEdit = (property: Property) => {
@@ -91,6 +136,29 @@ const Admin: React.FC = () => {
     setFormData(initialFormState);
     setUrlInput('');
     setDateInput({ startDate: '', endDate: '' });
+    setIsSaving(false);
+  };
+
+  // Generic File Upload to Supabase Storage
+  const uploadToSupabase = async (file: File, bucket: 'images' | 'videos'): Promise<string | null> => {
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}_${Date.now()}.${fileExt}`;
+      const filePath = `${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from(bucket)
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
+      return data.publicUrl;
+    } catch (error) {
+      console.error('Error uploading file:', error);
+      alert('Erro ao fazer upload do arquivo.');
+      return null;
+    }
   };
 
   // Image Handling Logic
@@ -104,7 +172,7 @@ const Admin: React.FC = () => {
     setUrlInput('');
   };
 
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files) return;
 
@@ -114,44 +182,41 @@ const Admin: React.FC = () => {
       return;
     }
 
-    const filesToProcess = Array.from(files).slice(0, remainingSlots);
+    setIsUploading(true);
+    // Cast to File[] to avoid 'unknown' type issue in loop
+    const filesToProcess = Array.from(files).slice(0, remainingSlots) as File[];
+    const newUrls: string[] = [];
+
+    for (const file of filesToProcess) {
+       const publicUrl = await uploadToSupabase(file, 'images');
+       if (publicUrl) newUrls.push(publicUrl);
+    }
+
+    setFormData(prev => ({
+       ...prev,
+       gallery: [...prev.gallery, ...newUrls]
+    }));
     
-    filesToProcess.forEach(file => {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setFormData(prev => {
-          if (prev.gallery.length >= 10) return prev;
-          return {
-            ...prev,
-            gallery: [...prev.gallery, reader.result as string]
-          };
-        });
-      };
-      reader.readAsDataURL(file as Blob);
-    });
-    
-    // Reset input
+    setIsUploading(false);
     e.target.value = '';
   };
 
   // Video File Upload Logic
-  const handleVideoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleVideoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Check size limit (e.g., 50MB for demo environment purposes)
     if (file.size > 50 * 1024 * 1024) {
-       alert("O arquivo de vídeo é muito grande (Máx. 50MB neste ambiente de demonstração).");
+       alert("O arquivo de vídeo é muito grande (Máx. 50MB recomendado).");
        return;
     }
 
-    const reader = new FileReader();
-    reader.onloadend = () => {
-       setFormData(prev => ({ ...prev, videoUrl: reader.result as string }));
-    };
-    reader.readAsDataURL(file);
-    
-    // Reset input
+    setIsUploading(true);
+    const publicUrl = await uploadToSupabase(file, 'videos');
+    if (publicUrl) {
+       setFormData(prev => ({ ...prev, videoUrl: publicUrl }));
+    }
+    setIsUploading(false);
     e.target.value = '';
   };
 
@@ -183,7 +248,7 @@ const Admin: React.FC = () => {
 
     setFormData(prev => ({
       ...prev,
-      availableDates: [...prev.availableDates, dateInput]
+      availableDates: [...(prev.availableDates || []), dateInput]
     }));
     setDateInput({ startDate: '', endDate: '' });
   };
@@ -196,17 +261,17 @@ const Admin: React.FC = () => {
   };
 
   // Amenity Management
-  const handleCreateAmenity = (e: React.FormEvent) => {
+  const handleCreateAmenity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newAmenityName) return;
-    addAmenity({
+    await addAmenity({
       label: newAmenityName,
       icon: newAmenityIcon
     });
     setNewAmenityName('');
   };
 
-  const handleSave = (e: React.FormEvent) => {
+  const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (formData.gallery.length === 0) {
@@ -214,63 +279,77 @@ const Admin: React.FC = () => {
       return;
     }
 
+    setIsSaving(true);
+
     const finalData = {
       ...formData,
       imageUrl: formData.gallery[0], // First image is always the cover
     };
 
     if (isEditing) {
-      updateProperty(isEditing, finalData);
+      await updateProperty(isEditing, finalData);
     } else {
-      // Basic validation
       if (!formData.title) {
         alert("Título é obrigatório.");
+        setIsSaving(false);
         return;
       }
-      addProperty(finalData);
+      await addProperty(finalData);
     }
     cancelForm();
   };
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     if (window.confirm('Tem certeza que deseja remover este imóvel?')) {
-      deleteProperty(id);
+      await deleteProperty(id);
     }
   };
 
   const toggleAmenity = (amenityId: string) => {
     setFormData(prev => {
-      const currentAmenities = prev.amenities.includes(amenityId)
-        ? prev.amenities.filter(a => a !== amenityId)
-        : [...prev.amenities, amenityId];
-      return { ...prev, amenities: currentAmenities };
+      const currentAmenities = prev.amenities || [];
+      const newAmenities = currentAmenities.includes(amenityId)
+        ? currentAmenities.filter(a => a !== amenityId)
+        : [...currentAmenities, amenityId];
+      return { ...prev, amenities: newAmenities };
     });
   };
 
-  if (!isLoggedIn) {
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#FFFCEF]">
+        <Loader2 className="animate-spin text-[#d65066]" size={48} />
+      </div>
+    );
+  }
+
+  if (!session) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#FFFCEF]">
         <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
           <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Painel Administrativo</h2>
+          {loginError && (
+             <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">{loginError}</div>
+          )}
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700">Usuário</label>
+              <label className="block text-sm font-medium text-gray-700">Email</label>
               <input 
-                type="text" 
-                value={loginUser}
-                onChange={e => setLoginUser(e.target.value)}
+                type="email" 
+                value={email}
+                onChange={e => setEmail(e.target.value)}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-[#d65066] focus:border-[#d65066]"
-                placeholder=""
+                required
               />
             </div>
             <div>
               <label className="block text-sm font-medium text-gray-700">Senha</label>
               <input 
                 type="password" 
-                value={loginPass}
-                onChange={e => setLoginPass(e.target.value)}
+                value={password}
+                onChange={e => setPassword(e.target.value)}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-[#d65066] focus:border-[#d65066]"
-                placeholder=""
+                required
               />
             </div>
             <button 
@@ -280,6 +359,9 @@ const Admin: React.FC = () => {
               Entrar
             </button>
           </form>
+          <div className="mt-6 text-center text-xs text-gray-400">
+             <p>Credenciais Padrão: surfads01@gmail.com / 123456</p>
+          </div>
         </div>
       </div>
     );
@@ -290,14 +372,109 @@ const Admin: React.FC = () => {
       <div className="bg-white shadow">
         <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
           <h1 className="text-2xl font-bold text-gray-900">Gerenciamento de Imóveis</h1>
-          <button onClick={handleLogout} className="text-gray-500 hover:text-red-500 flex items-center gap-2 text-sm">
-            <LogOut size={16}/> Sair
-          </button>
+          <div className="flex gap-4">
+             <button 
+               onClick={() => setShowSqlConfig(!showSqlConfig)} 
+               className="text-gray-500 hover:text-blue-600 flex items-center gap-2 text-sm border border-gray-200 px-3 py-1 rounded"
+             >
+               <Database size={16}/> Configurar BD
+             </button>
+             <button onClick={handleLogout} className="text-gray-500 hover:text-red-500 flex items-center gap-2 text-sm">
+               <LogOut size={16}/> Sair
+             </button>
+          </div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 mt-8">
         
+        {/* Database Config Alert for First Run (Auto detect or Manual Toggle) */}
+        {(isUsingMocks || showSqlConfig) && (
+           <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 rounded-r-lg shadow-sm">
+              <div className="flex flex-col">
+                 <div className="flex items-center mb-2">
+                    <div className="flex-shrink-0">
+                       <Settings className="h-5 w-5 text-yellow-400" aria-hidden="true" />
+                    </div>
+                    <div className="ml-3">
+                       <h3 className="text-sm font-bold text-yellow-800">
+                          {isUsingMocks ? 'Banco de Dados não configurado (Modo Mock Ativo)' : 'Configuração SQL do Banco de Dados'}
+                       </h3>
+                    </div>
+                    {showSqlConfig && (
+                       <button onClick={() => setShowSqlConfig(false)} className="ml-auto text-yellow-600 hover:text-yellow-800"><X size={16}/></button>
+                    )}
+                 </div>
+                 <div className="mt-2 text-sm text-yellow-700 ml-8">
+                    <p className="mb-2">
+                       Copie o código SQL abaixo e execute no <strong>SQL Editor</strong> do seu painel Supabase para criar as tabelas necessárias:
+                    </p>
+                    <pre className="bg-gray-800 text-gray-100 p-3 rounded text-xs overflow-x-auto select-all">
+{`-- 1. Tabela de Propriedades
+create table if not exists properties (
+  id uuid default gen_random_uuid() primary key,
+  title text not null,
+  description text,
+  location text,
+  price numeric,
+  capacity numeric,
+  "imageUrl" text,
+  gallery text[],
+  "videoUrl" text,
+  amenities text[],
+  "availableDates" jsonb default '[]'::jsonb,
+  "isFeatured" boolean default false,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+-- 2. Tabela de Comodidades
+create table if not exists amenities (
+  id text primary key,
+  label text,
+  icon text
+);
+
+-- 3. Tabela de Avaliações
+create table if not exists reviews (
+  id uuid default gen_random_uuid() primary key,
+  "propertyId" uuid references properties(id) on delete cascade,
+  "userName" text,
+  rating numeric,
+  comment text,
+  date text,
+  created_at timestamp with time zone default timezone('utc'::text, now())
+);
+
+-- 4. Buckets
+insert into storage.buckets (id, name, public) values ('images', 'images', true) on conflict do nothing;
+insert into storage.buckets (id, name, public) values ('videos', 'videos', true) on conflict do nothing;
+
+-- 5. Políticas RLS (Simplificado para permitir cadastro do frontend no modo admin)
+alter table properties enable row level security;
+create policy "Public view" on properties for select using (true);
+create policy "Auth insert" on properties for insert with check (auth.role() = 'authenticated');
+create policy "Auth update" on properties for update using (auth.role() = 'authenticated');
+create policy "Auth delete" on properties for delete using (auth.role() = 'authenticated');
+
+alter table amenities enable row level security;
+create policy "Public view" on amenities for select using (true);
+create policy "Auth all" on amenities for all using (auth.role() = 'authenticated');
+
+alter table reviews enable row level security;
+create policy "Public view" on reviews for select using (true);
+create policy "Public insert" on reviews for insert with check (true);
+
+-- Storage Policies
+create policy "Public Images" on storage.objects for select using ( bucket_id = 'images' );
+create policy "Auth Upload Images" on storage.objects for insert with check ( bucket_id = 'images' AND auth.role() = 'authenticated' );
+create policy "Public Videos" on storage.objects for select using ( bucket_id = 'videos' );
+create policy "Auth Upload Videos" on storage.objects for insert with check ( bucket_id = 'videos' AND auth.role() = 'authenticated' );`}
+                    </pre>
+                 </div>
+              </div>
+           </div>
+        )}
+
         {/* Amenity Management Section */}
         {isManagingAmenities && (
            <div className="bg-white rounded-xl shadow-lg p-8 mb-10 border-l-4 border-blue-500">
@@ -430,23 +607,21 @@ const Admin: React.FC = () => {
                           accept="video/*"
                           onChange={handleVideoUpload}
                           className="hidden"
+                          disabled={isUploading}
                        />
                        <label 
                           htmlFor="videoUpload" 
                           className="cursor-pointer flex items-center justify-center gap-2 bg-gray-200 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-300 font-medium text-sm transition h-full whitespace-nowrap"
                        >
-                          <Upload size={16} /> Upload Vídeo
+                          {isUploading ? <Loader2 className="animate-spin" size={16}/> : <Upload size={16} />} 
+                          Upload Vídeo
                        </label>
                      </div>
-                   </div>
-                   <div className="text-xs text-gray-500">
-                     Suporta links (YouTube, Vimeo) ou upload de arquivo direto (.mp4, .mov, etc).
                    </div>
                    
                    {formData.videoUrl && (
                       <div className="mt-2 text-sm text-green-600 flex items-center gap-1">
                          <span className="font-bold">Vídeo selecionado!</span>
-                         {formData.videoUrl.startsWith('data:') ? '(Arquivo Local)' : '(URL Externa)'}
                       </div>
                    )}
                  </div>
@@ -460,7 +635,7 @@ const Admin: React.FC = () => {
                      {formData.gallery.length}/10 imagens
                   </span>
                 </label>
-                <p className="text-xs text-gray-500 mb-4">A primeira imagem será usada como capa (capa principal). Clique em uma imagem para torná-la a capa.</p>
+                <p className="text-xs text-gray-500 mb-4">A primeira imagem será usada como capa.</p>
 
                 {/* Add Image Controls */}
                 <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -471,12 +646,12 @@ const Admin: React.FC = () => {
                          value={urlInput}
                          onChange={e => setUrlInput(e.target.value)}
                          className="flex-grow border border-gray-300 rounded-md p-2 text-sm"
-                         disabled={formData.gallery.length >= 10}
+                         disabled={formData.gallery.length >= 10 || isUploading}
                       />
                       <button 
                          type="button" 
                          onClick={handleAddUrl}
-                         disabled={!urlInput || formData.gallery.length >= 10}
+                         disabled={!urlInput || formData.gallery.length >= 10 || isUploading}
                          className="bg-gray-200 text-gray-700 px-3 py-2 rounded-md hover:bg-gray-300 disabled:opacity-50"
                       >
                          <Plus size={18} />
@@ -491,13 +666,14 @@ const Admin: React.FC = () => {
                          accept="image/*"
                          onChange={handleFileUpload}
                          className="hidden"
-                         disabled={formData.gallery.length >= 10}
+                         disabled={formData.gallery.length >= 10 || isUploading}
                       />
                       <label 
                          htmlFor="fileUpload" 
-                         className={`cursor-pointer flex items-center gap-2 bg-[#d65066] text-white px-4 py-2 rounded-md hover:bg-[#c03e53] font-medium text-sm transition ${formData.gallery.length >= 10 ? 'opacity-50 cursor-not-allowed' : ''}`}
+                         className={`cursor-pointer flex items-center gap-2 bg-[#d65066] text-white px-4 py-2 rounded-md hover:bg-[#c03e53] font-medium text-sm transition ${formData.gallery.length >= 10 || isUploading ? 'opacity-50 cursor-not-allowed' : ''}`}
                       >
-                         <Upload size={18} /> Upload Fotos
+                         {isUploading ? <Loader2 className="animate-spin" size={18}/> : <Upload size={18} />} 
+                         Upload Fotos
                       </label>
                    </div>
                 </div>
@@ -536,7 +712,7 @@ const Admin: React.FC = () => {
                     </div>
                   ))}
                   
-                  {formData.gallery.length === 0 && (
+                  {formData.gallery.length === 0 && !isUploading && (
                      <div className="col-span-full py-8 text-center text-gray-400 border-2 border-dashed border-gray-300 rounded-lg">
                         <ImageIcon size={48} className="mx-auto mb-2 opacity-30" />
                         <p>Nenhuma imagem adicionada</p>
@@ -550,7 +726,7 @@ const Admin: React.FC = () => {
                  <label className="block text-sm font-bold text-gray-800 mb-2">
                     Datas Disponíveis
                  </label>
-                 <p className="text-xs text-gray-500 mb-4">Adicione os intervalos de datas em que o imóvel está disponível para aluguel.</p>
+                 <p className="text-xs text-gray-500 mb-4">Adicione os intervalos de datas em que o imóvel está disponível.</p>
                  
                  <div className="flex flex-col sm:flex-row items-end gap-3 mb-4">
                     <div className="w-full sm:w-auto">
@@ -580,7 +756,7 @@ const Admin: React.FC = () => {
                     </button>
                  </div>
 
-                 {formData.availableDates.length > 0 ? (
+                 {(formData.availableDates || []).length > 0 ? (
                     <div className="flex flex-wrap gap-2">
                        {formData.availableDates.map((range, idx) => (
                           <div key={idx} className="flex items-center gap-2 bg-white border border-gray-200 px-3 py-2 rounded-lg shadow-sm">
@@ -630,9 +806,6 @@ const Admin: React.FC = () => {
                           {amenity.label}
                        </button>
                     ))}
-                    {amenities.length === 0 && (
-                       <p className="text-gray-400 text-sm">Nenhuma comodidade cadastrada. Clique em "Gerenciar Opções".</p>
-                    )}
                  </div>
               </div>
               
@@ -649,8 +822,12 @@ const Admin: React.FC = () => {
 
               <div className="flex justify-end pt-4">
                 <button type="button" onClick={cancelForm} className="mr-3 px-4 py-2 text-gray-700 hover:bg-gray-100 rounded-md">Cancelar</button>
-                <button type="submit" className="flex items-center gap-2 bg-[#d65066] text-white px-6 py-2 rounded-md hover:bg-[#c03e53] font-bold">
-                  <Save size={18} /> Salvar Imóvel
+                <button 
+                  type="submit" 
+                  disabled={isSaving || isUploading}
+                  className="flex items-center gap-2 bg-[#d65066] text-white px-6 py-2 rounded-md hover:bg-[#c03e53] font-bold disabled:opacity-50"
+                >
+                  {isSaving ? <Loader2 className="animate-spin" size={18}/> : <Save size={18} />} Salvar Imóvel
                 </button>
               </div>
             </form>
@@ -690,7 +867,7 @@ const Admin: React.FC = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="flex items-center">
                           <div className="h-10 w-10 flex-shrink-0">
-                            <img className="h-10 w-10 rounded-full object-cover" src={prop.imageUrl} alt="" />
+                            <img className="h-10 w-10 rounded-full object-cover" src={prop.imageUrl || 'https://via.placeholder.com/150'} alt="" />
                           </div>
                           <div className="ml-4">
                             <div className="text-sm font-medium text-gray-900">{prop.title}</div>
