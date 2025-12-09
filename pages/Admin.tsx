@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { useProperties } from '../contexts/PropertyContext';
 import { Property, DateRange } from '../types';
 import { supabase } from '../supabaseClient';
-import { Edit2, Trash2, Plus, X, Save, LogOut, Upload, Image as ImageIcon, Calendar, Video, Settings, Wifi, Wind, Tv, Coffee, Car, Droplets, Dumbbell, Lock, Sun, Umbrella, Loader2, Database } from 'lucide-react';
+import { Edit2, Trash2, Plus, X, Save, LogOut, Upload, Image as ImageIcon, Calendar, Video, Settings, Wifi, Wind, Tv, Coffee, Car, Droplets, Dumbbell, Lock, Sun, Umbrella, Loader2, Database, Key } from 'lucide-react';
 
 const Admin: React.FC = () => {
   const { properties, amenities, addProperty, updateProperty, deleteProperty, addAmenity, deleteAmenity, isUsingMocks } = useProperties();
@@ -16,6 +16,13 @@ const Admin: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showSqlConfig, setShowSqlConfig] = useState(false);
+
+  // Password Change State
+  const [showPasswordModal, setShowPasswordModal] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordStatus, setPasswordStatus] = useState<{type: 'success' | 'error' | '', msg: string}>({ type: '', msg: '' });
+  const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   // Login State
   const [email, setEmail] = useState('');
@@ -85,7 +92,7 @@ const Admin: React.FC = () => {
 
       if (error) {
         // Auto-create logic for the specific requested admin user if they don't exist
-        if (email === 'surfads01@gmail.com' && error?.message?.includes('Invalid login credentials')) {
+        if (email === 'surfads01@gmail.com' && error?.message && error.message.includes('Invalid login credentials')) {
           console.log("Tentando criar usuário admin automaticamente...");
           const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
             email,
@@ -105,12 +112,51 @@ const Admin: React.FC = () => {
         throw error;
       }
     } catch (error: any) {
-      setLoginError(error?.message || error?.error_description || 'Erro ao fazer login');
+       let msg = 'Erro ao fazer login';
+       if (error?.message) msg = error.message;
+       else if (error?.error_description) msg = error.error_description;
+       setLoginError(msg);
     }
   };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+  };
+
+  const handleUpdatePassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (newPassword !== confirmPassword) {
+      setPasswordStatus({ type: 'error', msg: 'As senhas não coincidem.' });
+      return;
+    }
+    if (newPassword.length < 6) {
+      setPasswordStatus({ type: 'error', msg: 'A senha deve ter pelo menos 6 caracteres.' });
+      return;
+    }
+
+    setIsUpdatingPassword(true);
+    setPasswordStatus({ type: '', msg: '' });
+
+    try {
+      const { error } = await supabase.auth.updateUser({
+        password: newPassword
+      });
+
+      if (error) throw error;
+
+      setPasswordStatus({ type: 'success', msg: 'Senha atualizada com sucesso!' });
+      setNewPassword('');
+      setConfirmPassword('');
+      setTimeout(() => {
+         setShowPasswordModal(false);
+         setPasswordStatus({ type: '', msg: '' });
+      }, 2000);
+
+    } catch (error: any) {
+      setPasswordStatus({ type: 'error', msg: error.message || 'Erro ao atualizar senha.' });
+    } finally {
+      setIsUpdatingPassword(false);
+    }
   };
 
   const startEdit = (property: Property) => {
@@ -359,9 +405,6 @@ const Admin: React.FC = () => {
               Entrar
             </button>
           </form>
-          <div className="mt-6 text-center text-xs text-gray-400">
-             <p>Credenciais Padrão: surfads01@gmail.com / 123456</p>
-          </div>
         </div>
       </div>
     );
@@ -370,16 +413,22 @@ const Admin: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#FFFCEF] pb-20">
       <div className="bg-white shadow">
-        <div className="max-w-7xl mx-auto px-4 py-6 flex justify-between items-center">
+        <div className="max-w-7xl mx-auto px-4 py-6 flex flex-col md:flex-row justify-between items-center gap-4">
           <h1 className="text-2xl font-bold text-gray-900">Gerenciamento de Imóveis</h1>
-          <div className="flex gap-4">
+          <div className="flex flex-wrap gap-2 md:gap-4 justify-center">
+             <button 
+               onClick={() => setShowPasswordModal(true)} 
+               className="text-gray-500 hover:text-[#d65066] flex items-center gap-2 text-sm border border-gray-200 px-3 py-1 rounded transition"
+             >
+               <Key size={16}/> Alterar Senha
+             </button>
              <button 
                onClick={() => setShowSqlConfig(!showSqlConfig)} 
-               className="text-gray-500 hover:text-blue-600 flex items-center gap-2 text-sm border border-gray-200 px-3 py-1 rounded"
+               className="text-gray-500 hover:text-blue-600 flex items-center gap-2 text-sm border border-gray-200 px-3 py-1 rounded transition"
              >
                <Database size={16}/> Configurar BD
              </button>
-             <button onClick={handleLogout} className="text-gray-500 hover:text-red-500 flex items-center gap-2 text-sm">
+             <button onClick={handleLogout} className="text-gray-500 hover:text-red-500 flex items-center gap-2 text-sm border border-gray-200 px-3 py-1 rounded transition">
                <LogOut size={16}/> Sair
              </button>
           </div>
@@ -388,7 +437,7 @@ const Admin: React.FC = () => {
 
       <div className="max-w-7xl mx-auto px-4 mt-8">
         
-        {/* Database Config Alert for First Run (Auto detect or Manual Toggle) */}
+        {/* Database Config Alert */}
         {(isUsingMocks || showSqlConfig) && (
            <div className="bg-yellow-50 border-l-4 border-yellow-400 p-4 mb-8 rounded-r-lg shadow-sm">
               <div className="flex flex-col">
@@ -449,7 +498,7 @@ create table if not exists reviews (
 insert into storage.buckets (id, name, public) values ('images', 'images', true) on conflict do nothing;
 insert into storage.buckets (id, name, public) values ('videos', 'videos', true) on conflict do nothing;
 
--- 5. Políticas RLS (Simplificado para permitir cadastro do frontend no modo admin)
+-- 5. Políticas RLS
 alter table properties enable row level security;
 create policy "Public view" on properties for select using (true);
 create policy "Auth insert" on properties for insert with check (auth.role() = 'authenticated');
@@ -473,6 +522,59 @@ create policy "Auth Upload Videos" on storage.objects for insert with check ( bu
                  </div>
               </div>
            </div>
+        )}
+
+        {/* Change Password Modal */}
+        {showPasswordModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+             <div className="bg-white rounded-xl shadow-xl p-6 w-full max-w-md">
+                <div className="flex justify-between items-center mb-6">
+                   <h2 className="text-xl font-bold text-gray-900">Alterar Senha</h2>
+                   <button onClick={() => setShowPasswordModal(false)} className="text-gray-400 hover:text-gray-600">
+                      <X size={24} />
+                   </button>
+                </div>
+                
+                {passwordStatus.msg && (
+                   <div className={`p-3 rounded mb-4 text-sm ${passwordStatus.type === 'error' ? 'bg-red-100 text-red-700' : 'bg-green-100 text-green-700'}`}>
+                      {passwordStatus.msg}
+                   </div>
+                )}
+
+                <form onSubmit={handleUpdatePassword} className="space-y-4">
+                   <div>
+                      <label className="block text-sm font-medium text-gray-700">Nova Senha</label>
+                      <input 
+                         type="password" 
+                         required
+                         minLength={6}
+                         value={newPassword}
+                         onChange={(e) => setNewPassword(e.target.value)}
+                         className="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-[#d65066] focus:border-[#d65066]"
+                      />
+                   </div>
+                   <div>
+                      <label className="block text-sm font-medium text-gray-700">Confirmar Nova Senha</label>
+                      <input 
+                         type="password" 
+                         required
+                         minLength={6}
+                         value={confirmPassword}
+                         onChange={(e) => setConfirmPassword(e.target.value)}
+                         className="mt-1 block w-full border border-gray-300 rounded-md p-2 focus:ring-[#d65066] focus:border-[#d65066]"
+                      />
+                   </div>
+                   <button 
+                      type="submit" 
+                      disabled={isUpdatingPassword}
+                      className="w-full bg-[#d65066] text-white py-2 rounded-md hover:bg-[#c03e53] font-bold transition disabled:opacity-50 flex justify-center items-center gap-2"
+                   >
+                      {isUpdatingPassword ? <Loader2 className="animate-spin" size={18}/> : <Save size={18} />} 
+                      Atualizar Senha
+                   </button>
+                </form>
+             </div>
+          </div>
         )}
 
         {/* Amenity Management Section */}
