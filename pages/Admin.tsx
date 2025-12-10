@@ -3,19 +3,23 @@ import React, { useState, useEffect } from 'react';
 import { useProperties } from '../contexts/PropertyContext';
 import { Property, DateRange } from '../types';
 import { supabase } from '../supabaseClient';
-import { Edit2, Trash2, Plus, X, Save, LogOut, Upload, Image as ImageIcon, Calendar, Video, Settings, Wifi, Wind, Tv, Coffee, Car, Droplets, Dumbbell, Lock, Sun, Umbrella, Loader2, Database, Key } from 'lucide-react';
+import { Edit2, Trash2, Plus, X, Save, LogOut, Upload, Image as ImageIcon, Calendar, Video, Settings, Wifi, Wind, Tv, Coffee, Car, Droplets, Dumbbell, Lock, Sun, Umbrella, Loader2, Database, Key, BarChart, Mail } from 'lucide-react';
 
 const Admin: React.FC = () => {
-  const { properties, amenities, addProperty, updateProperty, deleteProperty, addAmenity, deleteAmenity, isUsingMocks } = useProperties();
+  const { properties, amenities, settings, addProperty, updateProperty, deleteProperty, addAmenity, deleteAmenity, isUsingMocks, updateSettings } = useProperties();
   const [session, setSession] = useState<any>(null);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
   
   const [isEditing, setIsEditing] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [isManagingAmenities, setIsManagingAmenities] = useState(false);
+  const [isManagingSettings, setIsManagingSettings] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [showSqlConfig, setShowSqlConfig] = useState(false);
+
+  // Settings State
+  const [marketingSettings, setMarketingSettings] = useState({ googleTagId: '', facebookPixelId: '' });
 
   // Password Change State
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -25,9 +29,10 @@ const Admin: React.FC = () => {
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   // Login State
-  const [email, setEmail] = useState('');
+  const [email, setEmail] = useState('surfads01@gmail.com');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
+  const [isRecovering, setIsRecovering] = useState(false);
 
   // Form State
   const initialFormState: Omit<Property, 'id'> = {
@@ -67,19 +72,48 @@ const Admin: React.FC = () => {
   ];
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setIsAuthChecking(false);
-    });
+    // Initial Session Check with robust error handling
+    const initSession = async () => {
+      try {
+        const { data, error } = await supabase.auth.getSession();
+        if (error) {
+          console.warn("Erro na sessão (Token inválido/expirado). Realizando logout para limpar estado.", error.message);
+          // If token is invalid, force sign out to clear storage and prevent loops
+          await supabase.auth.signOut();
+          setSession(null);
+        } else {
+          setSession(data.session);
+        }
+      } catch (err) {
+        console.error("Erro inesperado na autenticação:", err);
+        setSession(null);
+      } finally {
+        setIsAuthChecking(false);
+      }
+    };
+
+    initSession();
 
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || event === 'TOKEN_REFRESH_REVOKED') {
+        setSession(null);
+      } else {
+        setSession(session);
+      }
     });
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Update local settings state when context settings load
+  useEffect(() => {
+    setMarketingSettings({
+      googleTagId: settings.googleTagId || '',
+      facebookPixelId: settings.facebookPixelId || ''
+    });
+  }, [settings]);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -115,7 +149,31 @@ const Admin: React.FC = () => {
        let msg = 'Erro ao fazer login';
        if (error?.message) msg = error.message;
        else if (error?.error_description) msg = error.error_description;
+       
+       if (msg.includes('Invalid login credentials') && email === 'surfads01@gmail.com') {
+          msg = 'Senha incorreta. Se você criou a conta com a senha antiga (123456), tente ela, ou use "Esqueci minha senha" para redefinir para "adminmybnb".';
+       }
        setLoginError(msg);
+    }
+  };
+
+  const handleRecoverPassword = async () => {
+    if (!email) {
+      setLoginError("Digite seu e-mail para recuperar a senha.");
+      return;
+    }
+    setIsRecovering(true);
+    setLoginError('');
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: window.location.origin + '/admin',
+      });
+      if (error) throw error;
+      alert(`Email de recuperação enviado para ${email}. Verifique sua caixa de entrada.`);
+    } catch (error: any) {
+      setLoginError(error.message || "Erro ao enviar email de recuperação.");
+    } finally {
+      setIsRecovering(false);
     }
   };
 
@@ -162,6 +220,7 @@ const Admin: React.FC = () => {
   const startEdit = (property: Property) => {
     setIsCreating(false);
     setIsManagingAmenities(false);
+    setIsManagingSettings(false);
     setIsEditing(property.id);
     setFormData(property);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -170,6 +229,7 @@ const Admin: React.FC = () => {
   const startCreate = () => {
     setIsEditing(null);
     setIsManagingAmenities(false);
+    setIsManagingSettings(false);
     setIsCreating(true);
     setFormData(initialFormState);
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -179,6 +239,7 @@ const Admin: React.FC = () => {
     setIsEditing(null);
     setIsCreating(false);
     setIsManagingAmenities(false);
+    setIsManagingSettings(false);
     setFormData(initialFormState);
     setUrlInput('');
     setDateInput({ startDate: '', endDate: '' });
@@ -345,6 +406,15 @@ const Admin: React.FC = () => {
     cancelForm();
   };
 
+  const handleSaveSettings = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSaving(true);
+    await updateSettings(marketingSettings);
+    setIsSaving(false);
+    setIsManagingSettings(false);
+    alert('Configurações de marketing atualizadas com sucesso!');
+  };
+
   const handleDelete = async (id: string) => {
     if (window.confirm('Tem certeza que deseja remover este imóvel?')) {
       await deleteProperty(id);
@@ -375,7 +445,7 @@ const Admin: React.FC = () => {
         <div className="bg-white p-8 rounded-xl shadow-lg w-full max-w-md">
           <h2 className="text-2xl font-bold text-center mb-6 text-gray-800">Painel Administrativo</h2>
           {loginError && (
-             <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm">{loginError}</div>
+             <div className="bg-red-100 text-red-700 p-3 rounded mb-4 text-sm font-medium">{loginError}</div>
           )}
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
@@ -396,6 +466,7 @@ const Admin: React.FC = () => {
                 onChange={e => setPassword(e.target.value)}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-[#d65066] focus:border-[#d65066]"
                 required
+                placeholder="adminmybnb"
               />
             </div>
             <button 
@@ -404,6 +475,17 @@ const Admin: React.FC = () => {
             >
               Entrar
             </button>
+            <div className="text-center mt-2">
+               <button 
+                 type="button" 
+                 onClick={handleRecoverPassword}
+                 disabled={isRecovering}
+                 className="text-sm text-gray-500 hover:text-[#d65066] flex items-center justify-center gap-1 w-full"
+               >
+                 {isRecovering ? <Loader2 size={14} className="animate-spin" /> : <Mail size={14} />} 
+                 Esqueci minha senha
+               </button>
+            </div>
           </form>
         </div>
       </div>
@@ -494,11 +576,20 @@ create table if not exists reviews (
   created_at timestamp with time zone default timezone('utc'::text, now())
 );
 
--- 4. Buckets
+-- 4. Configurações do Site (Marketing)
+create table if not exists site_settings (
+  id int primary key default 1,
+  google_tag_id text,
+  facebook_pixel_id text,
+  constraint single_row check (id = 1)
+);
+insert into site_settings (id) values (1) on conflict do nothing;
+
+-- 5. Buckets
 insert into storage.buckets (id, name, public) values ('images', 'images', true) on conflict do nothing;
 insert into storage.buckets (id, name, public) values ('videos', 'videos', true) on conflict do nothing;
 
--- 5. Políticas RLS
+-- 6. Políticas RLS
 alter table properties enable row level security;
 create policy "Public view" on properties for select using (true);
 create policy "Auth insert" on properties for insert with check (auth.role() = 'authenticated');
@@ -512,6 +603,10 @@ create policy "Auth all" on amenities for all using (auth.role() = 'authenticate
 alter table reviews enable row level security;
 create policy "Public view" on reviews for select using (true);
 create policy "Public insert" on reviews for insert with check (true);
+
+alter table site_settings enable row level security;
+create policy "Public view settings" on site_settings for select using (true);
+create policy "Auth update settings" on site_settings for update using (auth.role() = 'authenticated');
 
 -- Storage Policies
 create policy "Public Images" on storage.objects for select using ( bucket_id = 'images' );
@@ -575,6 +670,59 @@ create policy "Auth Upload Videos" on storage.objects for insert with check ( bu
                 </form>
              </div>
           </div>
+        )}
+
+        {/* Marketing Settings Section */}
+        {isManagingSettings && (
+           <div className="bg-white rounded-xl shadow-lg p-8 mb-10 border-l-4 border-indigo-500">
+             <div className="flex justify-between mb-6">
+               <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
+                  <BarChart size={20} /> Configurações de Marketing (Pixel & Analytics)
+               </h2>
+               <button onClick={() => setIsManagingSettings(false)} className="text-gray-400 hover:text-gray-600"><X /></button>
+             </div>
+             
+             <div className="bg-indigo-50 p-4 rounded-lg mb-6 text-sm text-indigo-800">
+                Insira os IDs fornecidos pelas plataformas. Os scripts serão injetados automaticamente no site.
+             </div>
+
+             <form onSubmit={handleSaveSettings} className="space-y-6">
+                <div>
+                   <label className="block text-sm font-bold text-gray-700 mb-1">Google Tag Manager / Analytics ID</label>
+                   <div className="flex items-center gap-2">
+                      <span className="bg-gray-100 text-gray-500 px-3 py-2 rounded-l-md border border-r-0 border-gray-300">G- ou GTM-</span>
+                      <input 
+                         type="text" 
+                         value={marketingSettings.googleTagId}
+                         onChange={e => setMarketingSettings({...marketingSettings, googleTagId: e.target.value})}
+                         placeholder="Ex: XXXXXXXX"
+                         className="w-full border border-gray-300 rounded-r-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
+                      />
+                   </div>
+                   <p className="text-xs text-gray-500 mt-1">Exemplo: G-12345ABCDE</p>
+                </div>
+
+                <div>
+                   <label className="block text-sm font-bold text-gray-700 mb-1">Facebook Pixel ID</label>
+                   <input 
+                      type="text" 
+                      value={marketingSettings.facebookPixelId}
+                      onChange={e => setMarketingSettings({...marketingSettings, facebookPixelId: e.target.value})}
+                      placeholder="Ex: 123456789012345"
+                      className="w-full border border-gray-300 rounded-md p-2 focus:ring-indigo-500 focus:border-indigo-500"
+                   />
+                   <p className="text-xs text-gray-500 mt-1">Apenas o número do ID.</p>
+                </div>
+
+                <button 
+                  type="submit" 
+                  disabled={isSaving}
+                  className="bg-indigo-600 text-white px-6 py-2 rounded-md hover:bg-indigo-700 font-bold disabled:opacity-50 flex items-center gap-2"
+                >
+                  {isSaving ? <Loader2 className="animate-spin" size={18}/> : <Save size={18} />} Salvar Configurações
+                </button>
+             </form>
+           </div>
         )}
 
         {/* Amenity Management Section */}
@@ -653,7 +801,7 @@ create policy "Auth Upload Videos" on storage.objects for insert with check ( bu
         )}
 
         {/* Property Form Area */}
-        {(isCreating || isEditing) && !isManagingAmenities && (
+        {(isCreating || isEditing) && !isManagingAmenities && !isManagingSettings && (
           <div className="bg-white rounded-xl shadow-lg p-8 mb-10 border-l-4 border-[#e8a633]">
             <div className="flex justify-between mb-6">
               <h2 className="text-xl font-bold text-gray-800">
@@ -937,13 +1085,16 @@ create policy "Auth Upload Videos" on storage.objects for insert with check ( bu
         )}
 
         {/* List Area */}
-        {!isCreating && !isEditing && !isManagingAmenities && (
+        {!isCreating && !isEditing && !isManagingAmenities && !isManagingSettings && (
           <div className="bg-white rounded-xl shadow overflow-hidden">
             <div className="p-6 border-b border-gray-100 flex justify-between items-center bg-gray-50">
                <div className="flex gap-4">
                   <h3 className="font-bold text-gray-700 pt-2">Imóveis ({properties.length})</h3>
                </div>
                <div className="flex gap-2">
+                  <button onClick={() => setIsManagingSettings(true)} className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-50 transition font-medium text-sm">
+                     <BarChart size={18} /> Marketing
+                  </button>
                   <button onClick={() => setIsManagingAmenities(true)} className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-50 transition font-medium text-sm">
                      <Settings size={18} /> Comodidades
                   </button>

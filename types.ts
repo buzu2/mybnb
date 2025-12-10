@@ -34,6 +34,11 @@ export interface Property {
   isFeatured: boolean;
 }
 
+export interface SiteSettings {
+  googleTagId: string;
+  facebookPixelId: string;
+}
+
 export const BRAND_COLORS = {
   primary: '#d65066',
   secondary: '#e8a633',

@@ -1,6 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { Property, Amenity, Review } from '../types';
+import { Property, Amenity, Review, SiteSettings } from '../types';
 import { supabase } from '../supabaseClient';
 
 // --- MOCK DATA FOR FALLBACK ---
@@ -73,10 +73,16 @@ const MOCK_REVIEWS: Review[] = [
   { id: '3', propertyId: '2', userName: 'Mariana Costa', rating: 5, comment: 'Localização perfeita para quem precisa resolver coisas no centro.', date: '2023-11-05' }
 ];
 
+const MOCK_SETTINGS: SiteSettings = {
+  googleTagId: '',
+  facebookPixelId: ''
+};
+
 interface PropertyContextType {
   properties: Property[];
   amenities: Amenity[];
   reviews: Review[];
+  settings: SiteSettings;
   loading: boolean;
   isUsingMocks: boolean;
   addProperty: (property: Omit<Property, 'id'>) => Promise<void>;
@@ -87,6 +93,7 @@ interface PropertyContextType {
   addReview: (review: Omit<Review, 'id' | 'date'>) => Promise<void>;
   getPropertyReviews: (propertyId: string) => Review[];
   getPropertyAverageRating: (propertyId: string) => number;
+  updateSettings: (newSettings: SiteSettings) => Promise<void>;
 }
 
 const PropertyContext = createContext<PropertyContextType | undefined>(undefined);
@@ -95,6 +102,7 @@ export const PropertyProvider: React.FC<{ children: ReactNode }> = ({ children }
   const [properties, setProperties] = useState<Property[]>([]);
   const [amenities, setAmenities] = useState<Amenity[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
+  const [settings, setSettings] = useState<SiteSettings>(MOCK_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [isUsingMocks, setIsUsingMocks] = useState(false);
 
@@ -128,6 +136,20 @@ export const PropertyProvider: React.FC<{ children: ReactNode }> = ({ children }
 
         if (revsError) throw revsError;
 
+        // Fetch Settings
+        const { data: settingsData, error: settingsError } = await supabase
+          .from('site_settings')
+          .select('*')
+          .single();
+
+        // Handle settings: if table exists but empty, or error (we fallback later)
+        if (settingsData) {
+          setSettings({
+            googleTagId: settingsData.google_tag_id || '',
+            facebookPixelId: settingsData.facebook_pixel_id || ''
+          });
+        }
+
         // Set data if successful
         setProperties(propsData || []);
         setAmenities(amensData || []);
@@ -137,12 +159,13 @@ export const PropertyProvider: React.FC<{ children: ReactNode }> = ({ children }
 
       } catch (error) {
         console.warn("Falha ao carregar do Supabase (tabelas podem não existir ou erro de conexão). Carregando dados Mock.");
-        console.error(error);
+        // console.error(error); // Keep clean console for user
         
         // Fallback to Mock Data
         setProperties(MOCK_PROPERTIES);
         setAmenities(MOCK_AMENITIES);
         setReviews(MOCK_REVIEWS);
+        setSettings(MOCK_SETTINGS);
         setIsUsingMocks(true);
       } finally {
         setLoading(false);
@@ -278,11 +301,34 @@ export const PropertyProvider: React.FC<{ children: ReactNode }> = ({ children }
     return parseFloat((sum / propReviews.length).toFixed(1));
   };
 
+  // Settings Logic
+  const updateSettings = async (newSettings: SiteSettings) => {
+    try {
+      // Upsert into site_settings table (ensure only id=1 exists)
+      const { error } = await supabase
+        .from('site_settings')
+        .upsert({
+          id: 1, // Single row constraint
+          google_tag_id: newSettings.googleTagId,
+          facebook_pixel_id: newSettings.facebookPixelId
+        });
+
+      if (error) throw error;
+      setSettings(newSettings);
+    } catch (error) {
+      console.error("Erro ao atualizar configurações:", error);
+      // Fallback
+      setSettings(newSettings);
+      alert("Erro ao salvar no banco. Configuração salva localmente.");
+    }
+  };
+
   return (
     <PropertyContext.Provider value={{ 
       properties, 
       amenities,
       reviews,
+      settings,
       loading,
       isUsingMocks,
       addProperty, 
@@ -292,7 +338,8 @@ export const PropertyProvider: React.FC<{ children: ReactNode }> = ({ children }
       deleteAmenity,
       addReview,
       getPropertyReviews,
-      getPropertyAverageRating
+      getPropertyAverageRating,
+      updateSettings
     }}>
       {children}
     </PropertyContext.Provider>

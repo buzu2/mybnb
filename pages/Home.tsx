@@ -1,6 +1,7 @@
+
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowRight, Star, Quote, HelpCircle, ChevronDown } from 'lucide-react';
+import { ArrowRight, Star, Quote, HelpCircle, ChevronDown, MapPin, Plane, Bus, Car, ShoppingBag, Utensils, Music, Sun } from 'lucide-react';
 import { useProperties } from '../contexts/PropertyContext';
 import PropertyCard from '../components/PropertyCard';
 
@@ -110,12 +111,12 @@ const Home: React.FC = () => {
           <img 
             src="https://i.postimg.cc/hjX3ZGrM/logo-super.png" 
             alt="MyBnB Flats Logo" 
-            className="mx-auto h-32 mb-6"
+            className="h-32 w-auto mx-auto mb-6"
           />
           <span className="text-[#e8a633] font-bold uppercase tracking-widest text-sm mb-3 block">Nossa Proposta</span>
           <h2 className="text-3xl font-bold text-gray-900 mb-6">Design, Conforto e Praticidade</h2>
           <p className="text-gray-600 text-lg leading-relaxed">
-            Oferecemos uma curadoria exclusiva de imóveis para temporada. Cada apartamento é pensado para que você tenha a experiência de um hotel com o calor e a liberdade de uma casa. Check-in simplificado, suporte 24h e localizações estratégicas.
+            Nossos flats foram planejados para oferecer praticidade, conforto e uma experiência superior ao que normalmente se encontra em hospedagens de temporada. Tudo pensado para você se sentir em casa, com atendimento direto e rápido. Nos inspiramos ao máximo na cultura popular para te oferecer um pouco da cultura nordestina e brasileira em sua hospedagem.
           </p>
         </div>
       </section>
@@ -143,6 +144,68 @@ const Home: React.FC = () => {
             <Link to="/apartments" className="inline-block px-6 py-3 border-2 border-[#d65066] text-[#d65066] font-bold rounded-full hover:bg-[#d65066] hover:text-white transition">
               Ver todos os imóveis
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Localização / Reference Points Section */}
+      <section className="py-20 bg-[#FFFCEF]">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="bg-white rounded-3xl shadow-sm border border-gray-100 overflow-hidden">
+            <div className="grid grid-cols-1">
+              <div className="p-10 md:p-14">
+                <div className="mb-8">
+                  <h2 className="text-3xl font-bold text-gray-900 mb-2 flex items-center gap-2">
+                    <MapPin className="text-[#d65066]" /> LOCALIZAÇÃO
+                  </h2>
+                  <div className="w-16 h-1 bg-[#e8a633] rounded-full"></div>
+                </div>
+
+                <h3 className="text-xl font-bold text-[#d65066] mb-4">Pontos de Referência</h3>
+                <p className="text-gray-600 mb-8 leading-relaxed">
+                  Nossos apartamentos ficam próximos aos principais pontos da cidade, facilitando deslocamentos para compromissos profissionais, turismo e lazer. A região é segura, de fácil acesso e muito prática para quem vem a Petrolina pela primeira vez.
+                </p>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-4 gap-x-8">
+                  <div className="flex items-center gap-3 text-gray-700">
+                    <div className="bg-[#FFFCEF] p-2 rounded-full text-[#e8a633]"><MapPin size={18}/></div>
+                    <span className="text-sm"><strong>Centro</strong> – a 4 km</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-gray-700">
+                    <div className="bg-[#FFFCEF] p-2 rounded-full text-[#e8a633]"><Sun size={18}/></div>
+                    <span className="text-sm"><strong>Rio São Francisco</strong> – a 4 km</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-gray-700">
+                    <div className="bg-[#FFFCEF] p-2 rounded-full text-[#e8a633]"><Sun size={18}/></div>
+                    <span className="text-sm"><strong>Orla</strong> – 4 km</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-gray-700">
+                    <div className="bg-[#FFFCEF] p-2 rounded-full text-[#e8a633]"><Plane size={18}/></div>
+                    <span className="text-sm"><strong>Aeroporto</strong> – a 10 km</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-gray-700">
+                    <div className="bg-[#FFFCEF] p-2 rounded-full text-[#e8a633]"><Bus size={18}/></div>
+                    <span className="text-sm"><strong>Rodoviária</strong> – a 2 km</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-gray-700">
+                    <div className="bg-[#FFFCEF] p-2 rounded-full text-[#e8a633]"><Music size={18}/></div>
+                    <span className="text-sm"><strong>Pátio de Eventos</strong> – a 1 km</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-gray-700">
+                    <div className="bg-[#FFFCEF] p-2 rounded-full text-[#e8a633]"><ShoppingBag size={18}/></div>
+                    <span className="text-sm"><strong>Mercados/Farmácias</strong> – a 1 km</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-gray-700">
+                    <div className="bg-[#FFFCEF] p-2 rounded-full text-[#e8a633]"><Utensils size={18}/></div>
+                    <span className="text-sm"><strong>Bododromo</strong> – a 1,5 km</span>
+                  </div>
+                  <div className="flex items-center gap-3 text-gray-700 sm:col-span-2">
+                    <div className="bg-[#FFFCEF] p-2 rounded-full text-[#e8a633]"><Car size={18}/></div>
+                    <span className="text-sm"><strong>Uber, táxi e transporte público</strong> – Fácil acesso</span>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>

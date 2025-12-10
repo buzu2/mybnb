@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { Instagram } from 'lucide-react';
+import { Instagram, Mail, Phone } from 'lucide-react';
 
 const Footer: React.FC = () => {
   return (
@@ -33,8 +33,14 @@ const Footer: React.FC = () => {
           
           <div>
             <h4 className="text-lg font-semibold mb-4 text-[#e8a633]">Contato</h4>
-            <p className="text-gray-400 mb-2">reservas@mybnbflats.com.br</p>
-            <p className="text-gray-400 mb-4">+55 (87) 99176-5540</p>
+            <p className="text-gray-400 mb-2 flex items-center gap-2">
+              <Mail size={18} className="text-[#d65066]" />
+              reservas@mybnbflats.imb.br
+            </p>
+            <p className="text-gray-400 mb-4 flex items-center gap-2">
+              <Phone size={18} className="text-[#d65066]" />
+              +55 (87) 99176-5540
+            </p>
             <div className="flex space-x-4">
               <a 
                 href="https://www.instagram.com/mybnbflats/" 

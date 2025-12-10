@@ -90,12 +90,38 @@ const PropertyDetails: React.FC = () => {
   };
 
   const getAmenityDetails = (amenityId: string) => {
+    // 1. Try to find exact match in context
     const amenity = amenities.find(a => a.id === amenityId);
     if (amenity) {
       return { label: amenity.label, icon: getIcon(amenity.icon) };
     }
-    // Fallback for legacy ids if not found in dynamic list
-    return { label: amenityId, icon: <CheckCircle size={20}/> };
+    
+    // 2. Smart Fallback for orphaned IDs (e.g. "cozinha_equipada_585")
+    
+    // Format Label: remove suffix numbers, replace underscores
+    let label = amenityId
+      .replace(/_\d+$/, '') // Remove trailing ID numbers like _585
+      .replace(/_/g, ' ');  // Replace underscores with spaces
+      
+    // Capitalize first letter
+    if (label.length > 0) label = label.charAt(0).toUpperCase() + label.slice(1);
+
+    // Guess Icon based on ID keywords
+    const lowerId = amenityId.toLowerCase();
+    let iconKey = 'check'; // Default
+
+    if (lowerId.includes('wifi')) iconKey = 'wifi';
+    else if (lowerId.includes('ar') || lowerId.includes('clim') || lowerId.includes('wind')) iconKey = 'wind';
+    else if (lowerId.includes('tv') || lowerId.includes('smart')) iconKey = 'tv';
+    else if (lowerId.includes('cozinha') || lowerId.includes('kitchen') || lowerId.includes('coffee') || lowerId.includes('utens')) iconKey = 'coffee';
+    else if (lowerId.includes('car') || lowerId.includes('estacion') || lowerId.includes('parking') || lowerId.includes('garage')) iconKey = 'car';
+    else if (lowerId.includes('piscina') || lowerId.includes('pool') || lowerId.includes('droplets') || lowerId.includes('banho') || lowerId.includes('chuveiro')) iconKey = 'droplets';
+    else if (lowerId.includes('acad') || lowerId.includes('gym') || lowerId.includes('fit')) iconKey = 'dumbbell';
+    else if (lowerId.includes('segur') || lowerId.includes('lock') || lowerId.includes('portaria') || lowerId.includes('fechadura')) iconKey = 'lock';
+    else if (lowerId.includes('sol') || lowerId.includes('praia')) iconKey = 'sun';
+    else if (lowerId.includes('lazer')) iconKey = 'umbrella';
+
+    return { label, icon: getIcon(iconKey) };
   };
 
   const whatsappMessage = `Olá, tenho interesse no *${property.title}* que vi no site. Poderia me dar mais informações?`;
@@ -203,7 +229,7 @@ const PropertyDetails: React.FC = () => {
   };
 
   return (
-    <div className="bg-white min-h-screen pb-20 relative">
+    <div className="bg-[#FFFCEF] min-h-screen pb-20 relative">
       
       {/* Gallery Section */}
       <div className="max-w-7xl mx-auto px-4 pt-6 pb-8 relative z-0">
@@ -292,7 +318,7 @@ const PropertyDetails: React.FC = () => {
         {/* Main Content */}
         <div className="lg:col-span-2 space-y-10">
           
-          <div>
+          <div className="bg-white p-8 rounded-2xl shadow-sm">
             <div className="flex justify-between items-start">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900 mb-2">{property.title}</h1>
@@ -336,7 +362,7 @@ const PropertyDetails: React.FC = () => {
             </p>
           </div>
 
-          <div>
+          <div className="bg-white p-8 rounded-2xl shadow-sm">
             <h3 className="text-xl font-bold text-gray-900 mb-6">O que este lugar oferece</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {property.amenities.map(amenityId => {
@@ -351,7 +377,7 @@ const PropertyDetails: React.FC = () => {
             </div>
           </div>
 
-          <div>
+          <div className="bg-white p-8 rounded-2xl shadow-sm">
              <h3 className="text-xl font-bold text-gray-900 mb-6">Localização</h3>
              
              <div className="flex items-start gap-2 mb-4 p-4 bg-gray-50 rounded-lg">
@@ -396,7 +422,7 @@ const PropertyDetails: React.FC = () => {
           </div>
 
           {/* Reviews Section */}
-          <div className="pt-10 border-t border-gray-200">
+          <div className="bg-white p-8 rounded-2xl shadow-sm">
              <div className="flex items-center gap-2 mb-8">
                 <Star fill="#e8a633" className="text-[#e8a633]" size={28} />
                 <h3 className="text-2xl font-bold text-gray-900">
