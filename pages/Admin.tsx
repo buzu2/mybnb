@@ -29,10 +29,11 @@ const Admin: React.FC = () => {
   const [isUpdatingPassword, setIsUpdatingPassword] = useState(false);
 
   // Login State
-  const [email, setEmail] = useState('surfads01@gmail.com');
+  const [email, setEmail] = useState('reservas@mybnb.imb.br');
   const [password, setPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [isRecovering, setIsRecovering] = useState(false);
+  const [isLoggingIn, setIsLoggingIn] = useState(false);
 
   // Form State
   const initialFormState: Omit<Property, 'id'> = {
@@ -118,42 +119,57 @@ const Admin: React.FC = () => {
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoginError('');
+    setIsLoggingIn(true);
+
     try {
+      // 1. Tentar fazer Login padrão
       const { data, error } = await supabase.auth.signInWithPassword({
         email,
         password,
       });
 
       if (error) {
-        // Auto-create logic for the specific requested admin user if they don't exist
-        if (email === 'surfads01@gmail.com' && error?.message && error.message.includes('Invalid login credentials')) {
-          console.log("Tentando criar usuário admin automaticamente...");
-          const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-            email,
-            password,
-          });
+        // Se der erro de credenciais inválidas, pode ser que o usuário não exista.
+        // Vamos tentar criar (Sign Up) automaticamente para facilitar o uso.
+        if (error.message.includes('Invalid login credentials')) {
+           
+           console.log("Login falhou, tentando criar usuário...");
+           const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+             email,
+             password,
+             options: {
+               data: { role: 'admin' }
+             }
+           });
 
-          if (signUpError) throw signUpError;
+           if (signUpError) {
+             // Se falhar o cadastro porque já existe, então a senha estava realmente errada no passo 1
+             if (signUpError.message.includes('already registered') || signUpError.message.includes('User already registered')) {
+               throw new Error("Usuário já existe, mas a senha está incorreta.");
+             }
+             throw signUpError; // Outro erro de cadastro
+           }
 
-          if (signUpData.session) {
-             // Login successful after creation
-             return;
-          } else if (signUpData.user) {
-             alert("Usuário criado com sucesso! Se você não conseguir entrar automaticamente, verifique seu e-mail para confirmar o cadastro (Padrão do Supabase).");
-             return;
-          }
+           if (signUpData.user && !signUpData.session) {
+             // Usuário criado, mas precisa de confirmação de email
+             throw new Error("Conta criada com sucesso! Por favor, verifique seu e-mail para confirmar o cadastro antes de entrar.");
+           }
+
+           // Se chegou aqui, criou e logou (session existe)
+           // O onAuthStateChange vai lidar com a atualização da sessão
+           return;
         }
+
         throw error;
       }
+      // Sucesso no login normal, onAuthStateChange lida com a sessão
     } catch (error: any) {
-       let msg = 'Erro ao fazer login';
-       if (error?.message) msg = error.message;
-       else if (error?.error_description) msg = error.error_description;
-       
-       if (msg.includes('Invalid login credentials') && email === 'surfads01@gmail.com') {
-          msg = 'Senha incorreta. Se você criou a conta com a senha antiga (123456), tente ela, ou use "Esqueci minha senha" para redefinir para "adminmybnb".';
-       }
+       console.error("Login Error:", error);
+       let msg = error.message;
+       if (msg === 'Invalid login credentials') msg = 'Email ou senha incorretos.';
        setLoginError(msg);
+    } finally {
+       setIsLoggingIn(false);
     }
   };
 
@@ -466,14 +482,15 @@ const Admin: React.FC = () => {
                 onChange={e => setPassword(e.target.value)}
                 className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm p-2 focus:ring-[#d65066] focus:border-[#d65066]"
                 required
-                placeholder="adminmybnb"
+                placeholder="Sua senha"
               />
             </div>
             <button 
               type="submit" 
-              className="w-full bg-[#d65066] text-white py-2 px-4 rounded-md hover:bg-[#c03e53] transition font-bold"
+              disabled={isLoggingIn}
+              className="w-full bg-[#d65066] text-white py-2 px-4 rounded-md hover:bg-[#c03e53] transition font-bold flex justify-center items-center gap-2 disabled:opacity-70"
             >
-              Entrar
+              {isLoggingIn ? <Loader2 className="animate-spin" size={20} /> : 'Entrar'}
             </button>
             <div className="text-center mt-2">
                <button 
